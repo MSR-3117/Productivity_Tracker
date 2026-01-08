@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src
+    environment:
+      - NODE_ENV=development
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DB_PATH=/app/data/planner.db
+    depends_on: []
