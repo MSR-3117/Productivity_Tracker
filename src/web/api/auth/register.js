@@ -1,7 +1,7 @@
-import { db, initializeDatabase } from './_db.js';
-import { createSession, json, setSessionCookie } from './_auth.js';
+import { db, initializeDatabase } from '../_db.js';
+import { createSession, json, setSessionCookie } from '../_auth.js';
 
-export const config = { runtime: 'edge' };
+export const config = { runtime: 'nodejs' };
 
 export default async function handler(req) {
     if (req.method === 'OPTIONS') {
