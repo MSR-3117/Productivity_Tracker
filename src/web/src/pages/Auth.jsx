@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { API_URL } from '../utils/api';
 import './Auth.css';
 
 export function LoginPage({ onSwitchToRegister }) {
@@ -61,6 +62,15 @@ export function LoginPage({ onSwitchToRegister }) {
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>
                 </form>
+
+                <div className="oauth-divider">
+                    <span>or</span>
+                </div>
+
+                <a href={`${API_URL}/api/auth/google`} className="oauth-button google">
+                    <img src="https://www.google.com/favicon.ico" alt="Google logo" className="oauth-icon" />
+                    Continue with Google
+                </a>
 
                 <p className="auth-switch">
                     Don't have an account?{' '}
@@ -152,6 +162,15 @@ export function RegisterPage({ onSwitchToLogin }) {
                         {loading ? 'Creating account...' : 'Create Account'}
                     </button>
                 </form>
+
+                <div className="oauth-divider">
+                    <span>or</span>
+                </div>
+
+                <a href={`${API_URL}/api/auth/google`} className="oauth-button google">
+                    <img src="https://www.google.com/favicon.ico" alt="Google logo" className="oauth-icon" />
+                    Continue with Google
+                </a>
 
                 <p className="auth-switch">
                     Already have an account?{' '}

@@ -1,29 +1,105 @@
-// API URL - uses relative paths on Vercel, absolute for local dev
-const API_URL = import.meta.env.VITE_API_URL || (
-    window.location.hostname === 'localhost'
+// API URL — uses /api prefix for both local dev and Vercel production
+export const API_URL = import.meta.env.VITE_API_URL || (
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? `http://${window.location.hostname}:3000`
-        : '/api'
+        : ''
 );
 
-async function request(endpoint, options = {}) {
-    // On Vercel, prepend /api to endpoints
-    const url = API_URL === '/api'
-        ? `/api${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
-        : `${API_URL}${endpoint}`;
+/**
+ * Flag to prevent multiple simultaneous refresh attempts
+ */
+let isRefreshing = false;
+let refreshPromise = null;
 
-    const response = await fetch(url, {
+/**
+ * Attempt to refresh the access token using the refresh token cookie
+ */
+async function refreshAccessToken() {
+    if (isRefreshing) {
+        return refreshPromise;
+    }
+
+    isRefreshing = true;
+    refreshPromise = fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+    })
+        .then(async (res) => {
+            if (!res.ok) {
+                throw new Error('Refresh failed');
+            }
+            const data = await res.json();
+            if (data.accessToken) {
+                window.__accessToken = data.accessToken;
+            }
+            return data.accessToken;
+        })
+        .finally(() => {
+            isRefreshing = false;
+            refreshPromise = null;
+        });
+
+    return refreshPromise;
+}
+
+async function request(endpoint, options = {}) {
+    // Ensure endpoint starts with /api
+    const apiEndpoint = endpoint.startsWith('/api')
+        ? endpoint
+        : `/api${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+
+    const url = `${API_URL}${apiEndpoint}`;
+
+    // Build headers with access token
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+
+    // Attach access token from memory if available
+    if (window.__accessToken) {
+        headers['Authorization'] = `Bearer ${window.__accessToken}`;
+    }
+
+    let response = await fetch(url, {
         ...options,
         credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-        },
+        headers,
     });
+
+    // If 401 with TOKEN_EXPIRED, attempt refresh and retry once
+    if (response.status === 401) {
+        const errorData = await response.json().catch(() => ({}));
+
+        if (errorData.code === 'TOKEN_EXPIRED' || !window.__accessToken) {
+            try {
+                const newToken = await refreshAccessToken();
+                if (newToken) {
+                    // Retry the original request with new token
+                    headers['Authorization'] = `Bearer ${newToken}`;
+                    response = await fetch(url, {
+                        ...options,
+                        credentials: 'include',
+                        headers,
+                    });
+                } else {
+                    throw new Error(errorData.error || 'Authentication required');
+                }
+            } catch (refreshError) {
+                // Refresh failed — clear token and throw
+                window.__accessToken = null;
+                throw new Error('Session expired. Please login again.');
+            }
+        } else {
+            throw new Error(errorData.error || 'Authentication required');
+        }
+    }
 
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || 'Request failed');
+        throw new Error(data.error || data.message || 'Request failed');
     }
 
     return data;
@@ -31,8 +107,8 @@ async function request(endpoint, options = {}) {
 
 // Auth API
 export const auth = {
-    register: (email, password) =>
-        request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    register: (email, password, name) =>
+        request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
     login: (email, password) =>
         request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
     logout: () =>
